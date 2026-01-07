@@ -1,0 +1,25 @@
+env:
+  FOX_SYNC: https://github.com/linastorvaldz/fox_sync.git
+  FOX_BRANCH: 14.1
+  DT_REPO: git@github.com:TegarXLu/Recovery_Device_Rodin.git
+  DT_BRANCH: main
+  DT_PATH: device/xiaomi/rodin
+  DEVICE_MAKEFILE: twrp_rodin-ap2a
+  DEVICE_NAME: rodin
+  BUILD_TARGET: vendorboot
+  TIMEZONE: Asia/lampung
+  RELEASE_REPO: TegarXLu/recovery-releases
+  GH_TOKEN: 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
+  
+task:
+  name: "Build Fox"
+  timeout_in: 480m
+  container:
+    image: eraselk/ubuntu:22.04
+    cpu: 8
+    memory: 32G
+
+  script:
+    - chmod a+x *.sh
+    - ./build.sh
+    - exit $?
