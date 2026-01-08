@@ -8,7 +8,7 @@ env:
   DEVICE_NAME: rodin
   BUILD_TARGET: vendorboot
   TIMEZONE: Asia/lampung
-  RELEASE_REPO: TegarXLu/recovery-releases
+  RELEASE_REPO: TegarXLu/Recovery-Release
   GH_TOKEN: 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
   
 task:
