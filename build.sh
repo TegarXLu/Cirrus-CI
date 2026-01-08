@@ -3,8 +3,6 @@
 set -eo pipefail                   # Exit on error
 exec > >(tee $HOME/build.log) 2>&1 # Write logs
 
-source functions.sh # Import functions
-
 # Handle errors
 trap 'err "Failed to execute command $BASH_COMMAND"' ERR
 
