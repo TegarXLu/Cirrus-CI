@@ -1,7 +1,7 @@
 env:
   FOX_SYNC: https://github.com/linastorvaldz/fox_sync.git
   FOX_BRANCH: 14.1
-  DT_REPO: https://github.com/TegarXLu/Recovery_Device_Rodin.git
+  DT_REPO: https://github.com/TegarXLu/Recovery-Rodin-Rebase.git
   DT_BRANCH: main
   DT_PATH: device/xiaomi/rodin
   DEVICE_MAKEFILE: twrp_rodin-ap2a
