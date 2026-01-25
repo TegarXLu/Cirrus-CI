@@ -1,11 +1,11 @@
 env:
   TWRP_SYNC: https://github.com/linastorvaldz/fox_sync.git
-  TWRP_BRANCH: fox-14.1
-  DT_REPO: https://github.com/TegarXLu/Recovery_Device_Rodin
-  DT_BRANCH: main
-  DT_PATH: device/xiaomi/rodin
-  DEVICE_MAKEFILE: twrp_rodin-ap2a
-  DEVICE_NAME: rodin
+  FOX_BRANCH: 14.1
+  DT_REPO: https://github.com/TegarXLu/recovery_xiaomi_gold.git
+  DT_BRANCH: HOS3-14.1
+  DT_PATH: device/xiaomi/gold
+  DEVICE_MAKEFILE: twrp_gold-ap2a
+  DEVICE_NAME: gold
   BUILD_TARGET: vendorboot
   TIMEZONE: Asia/lampung
   RELEASE_REPO: TegarXLu/Recovery-Release
