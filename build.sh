@@ -17,8 +17,8 @@ curl -LSs https://raw.githubusercontent.com/akhilnarang/scripts/refs/heads/maste
 
 # Sync Fox manifest
 log "Syncing Fox Manifest..."
-git config --global user.name "TegarXLu"
-git config --global user.email "tegartbb76@gmail.com"
+git config --global user.name "bintang774"
+git config --global user.email "108184157+bintang774@users.noreply.github.com"
 git clone --depth=1 "$FOX_SYNC" sync
 cd sync
 ./orangefox_sync.sh --branch "$FOX_BRANCH" --path "$(realpath ../fox_${FOX_BRANCH})"
@@ -55,5 +55,9 @@ URL=$(
     -R "$RELEASE_REPO" \
     2> /dev/null
 )
+
+# Send notification to telegram
+send_msg "*$RELEASE_NAME*\n[Download]($URL)"
+send_file "$HOME/build.log"
 
 exit 0
