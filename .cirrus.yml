@@ -7,7 +7,7 @@ env:
   DEVICE_MAKEFILE: twrp_gold-ap2a
   DEVICE_NAME: gold
   BUILD_TARGET: vendorboot
-    TIMEZONE: Asia/lampung
+  TIMEZONE: Asia/lampung
   RELEASE_REPO: TegarXLu/Recovery-Release
   GH_TOKEN: ENCRYPTED[!44d242237d643d0b3167f9ed5c29de9c91d4c6f47a6049eaee5d5938be15d12b734a70be11cba488b039df58024e8581!]
 
