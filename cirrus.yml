@@ -1,0 +1,110 @@
+# Cirrus CI configuration - Build PBRP recovery using PBRP android-14.1 manifest
+# USAGE:
+# - Set DEVICE_CODENAME in Cirrus CI variables to your device codename (e.g. "garnet")
+# - Optionally set DEVICE_REPO to a device tree repo URL (git) if your device tree isn't in the manifest
+# - JOBS defaults to number of parallel make jobs (set lower on small VMs)
+#
+# WARNING: This script will ALWAYS attempt to use the PBRP manifest branch "android-14.1".
+# Make sure you've prepared a manifest or fork that provides that branch.
+#
+MANIFEST_URL: "https://github.com/PitchBlackRecoveryProject/manifest_pb"
+MANIFEST_BRANCH: "android-14.1"
+DEVICE_CODENAME: "REPLACE_WITH_CODENAME"
+DEVICE_REPO: "" # optional: git URL for device tree (will clone into device/${DEVICE_CODENAME})
+JOBS: "4"
+
+task:
+  name: Build PBRP android-14.1
+  container: ubuntu-22.04
+  env:
+    - "MANIFEST_URL=${MANIFEST_URL}"
+    - "MANIFEST_BRANCH=${MANIFEST_BRANCH}"
+    - "DEVICE_CODENAME=${DEVICE_CODENAME}"
+    - "DEVICE_REPO=${DEVICE_REPO}"
+    - "JOBS=${JOBS}"
+  install_scripts:
+    - |
+      set -ex
+      apt-get update -y
+      apt-get install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev gcc-multilib g++-multilib python3 python3-pip openjdk-17-jdk repo || true
+      # Ensure 'repo' exists (install fallback)
+      if ! command -v repo >/dev/null 2>&1; then
+        curl -o /usr/local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+        chmod a+x /usr/local/bin/repo
+      fi
+  script:
+    - |
+      set -ex
+      # Basic validation
+      if [ -z "${DEVICE_CODENAME}" ] || [ "${DEVICE_CODENAME}" = "REPLACE_WITH_CODENAME" ]; then
+        echo "ERROR: DEVICE_CODENAME is not set. Set the Cirrus variable DEVICE_CODENAME to your device codename."
+        exit 1
+      fi
+
+      export HOME=/root
+      WORKDIR="$HOME/android"
+      mkdir -p "$WORKDIR"
+      cd "$WORKDIR"
+
+      echo "Initializing repo with PBRP manifest: ${MANIFEST_URL} (branch ${MANIFEST_BRANCH})"
+      repo init -u "${MANIFEST_URL}" -b "${MANIFEST_BRANCH}" --depth=1 || {
+        echo "repo init failed. Ensure the manifest URL and branch exist."
+        exit 2
+      }
+
+      echo "Syncing manifest (this may take a while)..."
+      repo sync -c --no-tags --optimized-fetch --prune -j$(nproc) --force-sync
+
+      # If device repo is provided, clone it to device/<codename>
+      if [ -n "${DEVICE_REPO}" ]; then
+        echo "Cloning additional device repo: ${DEVICE_REPO}"
+        mkdir -p device/${DEVICE_CODENAME}
+        git clone --depth=1 "${DEVICE_REPO}" device/${DEVICE_CODENAME} || true
+      fi
+
+      # Source environment and build
+      if [ -f build/envsetup.sh ]; then
+        . build/envsetup.sh
+      else
+        echo "ERROR: build/envsetup.sh not found. Repo sync may have failed or manifest is incompatible."
+        exit 3
+      fi
+
+      export ALLOW_MISSING_DEPENDENCIES=true
+      export USE_CCACHE=1
+      export CCACHE_DIR="$HOME/.ccache"
+      mkdir -p "$CCACHE_DIR"
+
+      # Try PBRP lunch combo first, fall back to twrp combo
+      if ( lunch "pbrp_${DEVICE_CODENAME}-eng" ); then
+        echo "Using PBRP lunch: pbrp_${DEVICE_CODENAME}-eng"
+      elif ( lunch "twrp_${DEVICE_CODENAME}-eng" ); then
+        echo "Using TWRP lunch: twrp_${DEVICE_CODENAME}-eng"
+      else
+        echo "ERROR: No lunch combo found for device ${DEVICE_CODENAME}. Check device codename or manifest."
+        exit 4
+      fi
+
+      # Build recovery image
+      echo "Starting build (recoveryimage) with ${JOBS} jobs..."
+      mka -j${JOBS} recoveryimage
+
+      # Collect artifacts
+      ART_DIR="/tmp/artifacts"
+      mkdir -p "${ART_DIR}"
+      RECOVERY_IMG="out/target/product/${DEVICE_CODENAME}/recovery.img"
+      if [ -f "${RECOVERY_IMG}" ]; then
+        cp "${RECOVERY_IMG}" "${ART_DIR}/recovery-${DEVICE_CODENAME}.img"
+        echo "Recovery image copied to ${ART_DIR}"
+      else
+        echo "Build finished but recovery image not found at ${RECOVERY_IMG}"
+        ls -la out/target/product/${DEVICE_CODENAME} || true
+        exit 5
+      fi
+
+  # Cirrus artifacts upload (paths are relative to the VM)
+  artifacts:
+    upload:
+      - path: /tmp/artifacts/recovery-${DEVICE_CODENAME}.img
+        name: recovery-${DEVICE_CODENAME}.img
+        when: always
