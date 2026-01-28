@@ -1,25 +1,32 @@
-env:
-  FOX_SYNC: https://github.com/PitchBlackRecoveryProject/manifest_pb
-  FOX_BRANCH: android-14.0
-  DT_REPO: https://github.com/linastorvaldz/recovery_xiaomi_gold.git
-  DT_BRANCH: HOS2-14.1
-  DT_PATH: device/xiaomi/gold
-  DEVICE_MAKEFILE: twrp_gold-ap2a
-  DEVICE_NAME: gold
-  BUILD_TARGET: vendorboot
-  TIMEZONE: Asia/lampung
-  RELEASE_REPO: TegarXLu/Recovery-Release
-  GH_TOKEN: ENCRYPTED[!44d242237d643d0b3167f9ed5c29de9c91d4c6f47a6049eaee5d5938be15d12b734a70be11cba488b039df58024e8581!]
+# Example Cirrus CI configuration for building LineageOS recovery for Poco X7 Pro
 
+# Define the build configuration
 task:
-  name: "Build Fox"
-  timeout_in: 480m
-  container:
-    image: eraselk/ubuntu:22.04
-    cpu: 8
-    memory: 32G
+  name: Build LineageOS Recovery for Poco X7 Pro Rodin
+  docker:
+    image: ubuntu:20.04  # Using Ubuntu 20.04 as base image
+    privileged: true  # Grant privileged mode for building recovery
 
+  environment:
+    ANDROID_BUILD_TOP: $HOME/android
+    TARGET_DEVICE: "rodin"  # Poco X7 Pro Rodin's device codename
+    RECOVERY_VARIANT: "recovery"  # Recovery build type
+    OUTPUT_DIR: $HOME/output
+    BRANCH: "lineage-18.1"  # Specify the LineageOS branch you want to use
+
+  # Define the steps to be executed
   script:
-    - chmod a+x *.sh
-    - ./build.sh
-    - exit $?
+    - git clone https://github.com/LineageOS/android.git $ANDROID_BUILD_TOP
+    - cd $ANDROID_BUILD_TOP
+    - git checkout $BRANCH
+    - source build/envsetup.sh
+    - lunch lineage_rodin-userdebug  # Set the build environment for your device
+    - make recoveryimage  # Build the recovery image
+    - mkdir -p $OUTPUT_DIR
+    - cp $ANDROID_BUILD_TOP/out/target/product/rodin/recovery.img $OUTPUT_DIR/
+
+  # After build, upload the recovery image to the artifacts for download
+  artifacts:
+    - $OUTPUT_DIR/recovery.img
+
+# This will allow you to trigger builds automatically in Cirrus CI when you push changes to the repo
