@@ -1,32 +1,29 @@
-# Example Cirrus CI configuration for building LineageOS recovery for Poco X7 Pro
-
-# Define the build configuration
+# cirrus.yml
 task:
-  name: Build LineageOS Recovery for Poco X7 Pro Rodin
-  docker:
-    image: ubuntu:20.04  # Using Ubuntu 20.04 as base image
-    privileged: true  # Grant privileged mode for building recovery
-
-  environment:
-    ANDROID_BUILD_TOP: $HOME/android
-    TARGET_DEVICE: "rodin"  # Poco X7 Pro Rodin's device codename
-    RECOVERY_VARIANT: "recovery"  # Recovery build type
-    OUTPUT_DIR: $HOME/output
-    BRANCH: "lineage-18.1"  # Specify the LineageOS branch you want to use
-
-  # Define the steps to be executed
-  script:
-    - git clone https://github.com/LineageOS/android.git $ANDROID_BUILD_TOP
-    - cd $ANDROID_BUILD_TOP
-    - git checkout $BRANCH
-    - source build/envsetup.sh
-    - lunch lineage_rodin-userdebug  # Set the build environment for your device
-    - make recoveryimage  # Build the recovery image
-    - mkdir -p $OUTPUT_DIR
-    - cp $ANDROID_BUILD_TOP/out/target/product/rodin/recovery.img $OUTPUT_DIR/
-
-  # After build, upload the recovery image to the artifacts for download
-  artifacts:
-    - $OUTPUT_DIR/recovery.img
-
-# This will allow you to trigger builds automatically in Cirrus CI when you push changes to the repo
+  build:
+    # Define the OS image to be built
+    container:
+      image: 'ubuntu:20.04'
+    environment:
+      - BRANCH: lineage-23.1
+      - DEVICE: rodin
+      - ROM: LineageOS
+      - AOSP: true
+    install:
+      # Install necessary dependencies
+      - sudo apt update && sudo apt install -y repo git gnupg flex bison build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev lib32z1-dev lib32readline-dev lib32sqlite3-dev lib32freetype6-dev lib32gcc1 lib32stdc++6 lib32ncursesw5-dev lib32bz2-dev liblz4-tool
+    pre_build:
+      # Set up repo and clone the sources
+      - git clone https://github.com/mt6899-rodin/android_device_xiaomi_rodin -b lineage-23.1 device/xiaomi/rodin
+      - mkdir -p ~/.repo/manifests
+      - curl https://raw.githubusercontent.com/LineageOS/android_manifest/lineage-23.1/default.xml -o ~/.repo/manifests/default.xml
+      - repo init -u https://github.com/LineageOS/android.git -b $BRANCH
+      - repo sync -j4
+    build:
+      # Start building the ROM
+      - source build/envsetup.sh
+      - lunch lineage_rodin-userdebug
+      - mka bacon
+    post_build:
+      # Upload the build result to artifact storage or your preferred location
+      - curl -F "file=@out/target/product/rodin/lineage-23.1-*.zip" https://ci.example.com/upload
