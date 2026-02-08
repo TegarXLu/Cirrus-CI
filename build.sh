@@ -56,4 +56,8 @@ URL=$(
     2> /dev/null
 )
 
+# Send notification to telegram
+send_msg "*$RELEASE_NAME*\n[Download]($URL)"
+send_file "$HOME/build.log"
+
 exit 0
