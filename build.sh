@@ -1,59 +1,88 @@
 #!/usr/bin/env bash
 
-set -eo pipefail                   # Exit on error
-exec > >(tee $HOME/build.log) 2>&1 # Write logs
+set -eo pipefail
+exec > >(tee "$HOME/build.log") 2>&1
 
-source functions.sh # Import functions
+# ==============================
+# Load helper functions
+# ==============================
+source functions.sh
 
-# Handle errors
-trap 'err "Failed to execute command $BASH_COMMAND"' ERR
+# Trap any error
+trap 'err "Failed to execute command: $BASH_COMMAND"' ERR
 
-# Create workspace dir
-mkdir -p workspace && cd workspace
+# ==============================
+# Workspace
+# ==============================
+mkdir -p workspace
+cd workspace
 
-# Isntall dependencies
+# ==============================
+# Install dependencies
+# ==============================
 log "Installing build dependencies..."
-curl -LSs https://raw.githubusercontent.com/akhilnarang/scripts/refs/heads/master/setup/android_build_env.sh | bash -
+curl -LSs https://raw.githubusercontent.com/akhilnarang/scripts/master/setup/android_build_env.sh | bash -
 
-# Sync Fox manifest
-log "Syncing Fox Manifest..."
+# ==============================
+# Sync OrangeFox manifest
+# ==============================
+log "Syncing OrangeFox manifest..."
 git config --global user.name "bintang774"
 git config --global user.email "108184157+bintang774@users.noreply.github.com"
+
 git clone --depth=1 "$FOX_SYNC" sync
 cd sync
-./orangefox_sync.sh --branch "$FOX_BRANCH" --path "$(realpath ../fox_${FOX_BRANCH})"
+./orangefox_sync.sh \
+  --branch "$FOX_BRANCH" \
+  --path "$(realpath ../fox_${FOX_BRANCH})"
 cd ..
 
-# Clone Device tree
+# ==============================
+# Clone device tree
+# ==============================
 cd "fox_${FOX_BRANCH}"
+
 log "Cloning device tree..."
 git clone --depth=1 -q "$DT_REPO" -b "$DT_BRANCH" "$DT_PATH"
 
-# Build Fox
-log "Building Fox..."
+# ==============================
+# Build OrangeFox
+# ==============================
+log "Building OrangeFox..."
 source build/envsetup.sh || true
 export ALLOW_MISSING_DEPENDENCIES=true
+
 lunch "${DEVICE_MAKEFILE}-eng"
+
 mka adbd "${BUILD_TARGET}image" -j"$(nproc --all)"
 
-# Files
+# ==============================
+# Output files
+# ==============================
 OUT_PATH="out/target/product/$DEVICE_NAME"
-OUTPUT_FILES=$(realpath "$OUT_PATH"/OrangeFox*.img)
 
-# Create GitHub release
+OUTPUT_FILES=$(ls "$OUT_PATH"/OrangeFox*.img 2>/dev/null || true)
+
+if [ -z "$OUTPUT_FILES" ]; then
+  err "No OrangeFox image generated!"
+fi
+
+# ==============================
+# GitHub Release
+# ==============================
 log "Creating GitHub release..."
+
 export GITHUB_TOKEN="$GH_TOKEN"
+
 DATE=$(TZ="$TIMEZONE" date +"%Y%m%d-%H%M")
 RELEASE_TAG="Fox-${DEVICE_NAME}-${DATE}"
 RELEASE_NAME="OrangeFox ${DEVICE_NAME} ${DATE}"
 
-# Upload output file to github release
-URL=$(
-  gh release create "$RELEASE_TAG" \
-    $OUTPUT_FILES \
-    --title "$RELEASE_NAME" \
-    -R "$RELEASE_REPO" \
-    2> /dev/null
-)
+gh release create "$RELEASE_TAG" \
+  $OUTPUT_FILES \
+  --title "$RELEASE_NAME" \
+  -R "$RELEASE_REPO" || \
+log "GitHub release skipped or already exists"
 
+log "Build & release completed successfully 🎉"
 exit 0
