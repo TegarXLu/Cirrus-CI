@@ -5,7 +5,7 @@ env:
   DT_BRANCH: main
   DT_PATH: device/xiaomi/rodin
   DEVICE_MAKEFILE: twrp_rodin-ap2a
-  DEVICE_NAME: gold
+  DEVICE_NAME: rodin
   BUILD_TARGET: vendorboot
   TIMEZONE: Asia/Makassar
   RELEASE_REPO: TegarXLu/Recovery-Release
