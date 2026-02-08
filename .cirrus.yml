@@ -1,15 +1,15 @@
 env:
-  FOX_SYNC: https://github.com/PitchBlackRecoveryProject/manifest_pb
-  FOX_BRANCH: android-14.0
-  DT_REPO: https://github.com/linastorvaldz/recovery_xiaomi_gold.git
-  DT_BRANCH: HOS2-14.1
-  DT_PATH: device/xiaomi/gold
-  DEVICE_MAKEFILE: twrp_gold-ap2a
+  FOX_SYNC: https://github.com/linastorvaldz/fox_sync.git
+  FOX_BRANCH: 14.1
+  DT_REPO: https://github.com/TegarXLu/android_device_xiaomi_rodin-twrp.git
+  DT_BRANCH: main
+  DT_PATH: device/xiaomi/rodin
+  DEVICE_MAKEFILE: twrp_rodin-ap2a
   DEVICE_NAME: gold
   BUILD_TARGET: vendorboot
-  TIMEZONE: Asia/lampung
+  TIMEZONE: Asia/Makassar
   RELEASE_REPO: TegarXLu/Recovery-Release
-  GH_TOKEN: ENCRYPTED[!44d242237d643d0b3167f9ed5c29de9c91d4c6f47a6049eaee5d5938be15d12b734a70be11cba488b039df58024e8581!]
+    GH_TOKEN: ENCRYPTED[!44d242237d643d0b3167f9ed5c29de9c91d4c6f47a6049eaee5d5938be15d12b734a70be11cba488b039df58024e8581!]
 
 task:
   name: "Build Fox"
