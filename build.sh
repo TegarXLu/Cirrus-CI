@@ -57,15 +57,22 @@ lunch "${DEVICE_MAKEFILE}-eng"
 mka adbd "${BUILD_TARGET}image" -j"$(nproc --all)"
 
 # ==============================
-# Output files
+# Output files (A14 compatible)
 # ==============================
 OUT_PATH="out/target/product/$DEVICE_NAME"
 
-OUTPUT_FILES=$(ls "$OUT_PATH"/OrangeFox*.img 2>/dev/null || true)
+OUTPUT_FILES=$(ls \
+  "$OUT_PATH"/vendor_boot.img \
+  "$OUT_PATH"/recovery.img \
+  "$OUT_PATH"/OrangeFox*.img \
+  2>/dev/null || true)
 
 if [ -z "$OUTPUT_FILES" ]; then
   err "No OrangeFox image generated!"
 fi
+
+log "Found output files:"
+ls -lh $OUTPUT_FILES
 
 # ==============================
 # GitHub Release
