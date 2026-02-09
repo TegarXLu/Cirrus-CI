@@ -9,8 +9,8 @@ env:
   BUILD_TARGET: vendorboot
   TIMEZONE: Asia/Makassar
   RELEASE_REPO: TegarXLu/Recovery-Release
-  GH_TOKEN: ENCRYPTED[!44d242237d643d0b3167f9ed5c29de9c91d4c6f47a6049eaee5d5938be15d12b734a70be11cba488b039df58024e8581!]
-
+  GH_TOKEN: ENCRYPTED[!995e5033f099e005114a08feb07baa00dcb5637a2a07674eedd4c5428f1e36a01f3dac8811e35f174488859940ed34d4!]
+  
 task:
   name: "Build Fox"
   timeout_in: 480m
