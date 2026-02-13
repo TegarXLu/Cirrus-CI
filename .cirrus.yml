@@ -10,20 +10,50 @@ task:
 # =========================
 # INSTALL DEPENDENCIES
 # =========================
-  setup_script:
-  - rm -rf /etc/apt/sources.list
-  - echo "deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse" >> /etc/apt/sources.list
-  - echo "deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list
-  - echo "deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse" >> /etc/apt/sources.list
-  - apt-get update -y
-  - DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
-  - apt-get update -y
-  - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      build-essential bc bison curl flex g++-multilib gcc-multilib git \
-      libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates \
-      cmake ninja-build pkg-config libncurses-dev libncurses5-dev libncursesw5-dev \
-      lib32z1 lib32ncurses6 lib32stdc++6
+  task:
+  name: Kernel Build
+  container:
+    image: ubuntu:22.04
 
+  setup_script:
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get clean
+    - rm -rf /var/lib/apt/lists/*
+    - apt-get update
+    - apt-get install -y software-properties-common
+    - add-apt-repository universe
+    - add-apt-repository multiverse
+    - apt-get update
+    - apt-get upgrade -y
+
+    # Install dependencies kernel
+    - apt-get install -y \
+        build-essential \
+        bc \
+        bison \
+        flex \
+        curl \
+        zip \
+        unzip \
+        git \
+        rsync \
+        python3 \
+        cpio \
+        ca-certificates \
+        libssl-dev \
+        libelf-dev \
+        cmake \
+        ninja-build \
+        pkg-config \
+        libncurses-dev \
+        libncurses5-dev \
+        libncursesw5-dev \
+        zlib1g-dev \
+        gcc-multilib \
+        g++-multilib
+
+  script:
+    - echo "Environment Ready"
 # =========================
 # CLONE SOURCE
 # =========================
