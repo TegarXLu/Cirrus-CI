@@ -11,24 +11,18 @@ task:
 # INSTALL DEPENDENCIES
 # =========================
   setup_script:
-    # update & basic tools
-    - apt-get update -y
-    - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends software-properties-common ca-certificates apt-transport-https gnupg
-
-    # enable universe & multiverse (beberapa paket ada di sana)
-    - add-apt-repository universe
-    - add-apt-repository multiverse
-    - apt-get update -y
-
-    # install build deps (gunakan apt-get dan --no-install-recommends)
-    - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        bison build-essential curl flex g++-multilib gcc-multilib git \
-        libssl-dev lzop rsync zip python3 cpio ca-certificates \
-        ninja-build pkg-config
-
-    # cleanup (opsional, menghemat space)
-    - apt-get clean
-    - rm -rf /var/lib/apt/lists/*
+  - apt-get update -y
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends software-properties-common ca-certificates apt-transport-https gnupg
+  - add-apt-repository universe || true
+  - add-apt-repository multiverse || true
+  - apt-get update -y
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential bc bison curl flex g++-multilib gcc-multilib git \
+      libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates \
+      cmake ninja-build pkg-config libncurses-dev libncurses5-dev libncursesw5-dev \
+      lib32z1 lib32ncurses6 lib32stdc++6
+  - apt-get clean
+  - rm -rf /var/lib/apt/lists/*
 
 # =========================
 # CLONE SOURCE
