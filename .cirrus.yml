@@ -26,7 +26,7 @@ task:
       cd kernel
 
       # ResuKiSU
-      git clone https://github.com/rsuntk/ResuKiSU KernelSU
+      git clone https://github.com/ReSukiSU/ReSukiSU KernelSU
       cp -r KernelSU drivers/
       echo 'source "drivers/KernelSU/Kconfig"' >> drivers/Kconfig
       echo 'obj-$(CONFIG_KSU) += KernelSU/' >> drivers/Makefile
