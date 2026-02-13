@@ -12,8 +12,8 @@ task:
     - DEBIAN_FRONTEND=noninteractive apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git libelf-dev libssl-dev lzop rsync zip python3 clang lld llvm
 
   clone_script:
-    - git clone https://github.com/71chjzkc/onyx -b 6.6.77-capybara-clo-2.4 kernel
-    - git clone https://github.com/Neutron-Toolchains/clang clang
+    - git clone https://github.com/71chjzkc/onyx_clo -b 6.6.77-capybara-clo-2.4 kernel
+    - git clone https://github.com/llvm/llvm-project clang
 
   build_script:
     - |
@@ -31,7 +31,7 @@ task:
       echo 'source "drivers/KernelSU/Kconfig"' >> drivers/Kconfig
       echo 'obj-$(CONFIG_KSU) += KernelSU/' >> drivers/Makefile
 
-      make rodin_defconfig
+      make onyx_defconfig
 
       scripts/config --enable KSU
       scripts/config --enable KSU_MANUAL_HOOK
