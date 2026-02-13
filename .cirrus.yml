@@ -11,10 +11,24 @@ task:
 # INSTALL DEPENDENCIES
 # =========================
   setup_script:
-    - apt update
-    - DEBIAN_FRONTEND=noninteractive apt install -y \
+    # update & basic tools
+    - apt-get update -y
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends software-properties-common ca-certificates apt-transport-https gnupg
+
+    # enable universe & multiverse (beberapa paket ada di sana)
+    - add-apt-repository universe
+    - add-apt-repository multiverse
+    - apt-get update -y
+
+    # install build deps (gunakan apt-get dan --no-install-recommends)
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         bc bison build-essential curl flex g++-multilib gcc-multilib git \
-        libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates
+        libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates \
+        cmake ninja-build pkg-config
+
+    # cleanup (opsional, menghemat space)
+    - apt-get clean
+    - rm -rf /var/lib/apt/lists/*
 
 # =========================
 # CLONE SOURCE
