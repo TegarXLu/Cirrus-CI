@@ -22,9 +22,9 @@ task:
 
     # install build deps (gunakan apt-get dan --no-install-recommends)
     - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        bc bison build-essential curl flex g++-multilib gcc-multilib git \
-        libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates \
-        cmake ninja-build pkg-config
+        bison build-essential curl flex g++-multilib gcc-multilib git \
+        libssl-dev lzop rsync zip python3 cpio ca-certificates \
+        ninja-build pkg-config
 
     # cleanup (opsional, menghemat space)
     - apt-get clean
