@@ -1,5 +1,5 @@
 task:
-  name: Onyx Kernel Build
+  name: Onyx CLO Kernel
   timeout_in: 120m
 
   container:
@@ -7,47 +7,93 @@ task:
     cpu: 8
     memory: 16G
 
+# =========================
+# INSTALL DEPENDENCIES
+# =========================
   setup_script:
     - apt update
-    - DEBIAN_FRONTEND=noninteractive apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git libelf-dev libssl-dev lzop rsync zip python3 clang lld llvm
+    - DEBIAN_FRONTEND=noninteractive apt install -y \
+        bc bison build-essential curl flex g++-multilib gcc-multilib git \
+        libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates
 
+# =========================
+# CLONE SOURCE
+# =========================
   clone_script:
     - git clone https://github.com/71chjzkc/onyx_clo -b 6.6.77-capybara-clo-2.4 kernel
-    - git clone https://github.com/llvm/llvm-project clang
+    - git clone --depth=1 https://github.com/llvm/llvm-project llvm
 
+# =========================
+# BUILD LLVM CLANG (STABLE)
+# =========================
+  clang_script:
+    - |
+      cd llvm
+      cmake -S llvm -B build -G Ninja \
+        -DLLVM_ENABLE_PROJECTS="clang;lld" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86"
+      ninja -C build clang lld
+      cd ..
+
+# =========================
+# BUILD KERNEL
+# =========================
   build_script:
     - |
       export ARCH=arm64
       export SUBARCH=arm64
+      export PATH=$PWD/llvm/build/bin:$PATH
       export LLVM=1
       export LLVM_IAS=1
-      export PATH=$PWD/clang/bin:$PATH
 
       cd kernel
 
-      # ResuKiSU
-      git clone https://github.com/ReSukiSU/ReSukiSU KernelSU
-      cp -r KernelSU drivers/
-      echo 'source "drivers/KernelSU/Kconfig"' >> drivers/Kconfig
-      echo 'obj-$(CONFIG_KSU) += KernelSU/' >> drivers/Makefile
+      # ===== ReSuKiSU Inject (FIXED PATH) =====
+      if [ ! -d drivers/KernelSU ]; then
+        git clone https://github.com/ReSuKiSU/ReSuKiSU
+        mv ReSuKiSU drivers/KernelSU
+        echo 'source "drivers/KernelSU/Kconfig"' >> drivers/Kconfig
+        echo 'obj-$(CONFIG_KSU) += KernelSU/' >> drivers/Makefile
+      fi
 
+      # ===== DEFCONFIG =====
       make onyx_defconfig
 
+      # ===== ROOT + DEBUG =====
       scripts/config --enable KSU
       scripts/config --enable KSU_MANUAL_HOOK
-      scripts/config --enable KSU_SUSFS
       scripts/config --enable KPM
       scripts/config --enable KPROBES
       scripts/config --enable KALLSYMS
       scripts/config --enable KALLSYMS_ALL
 
+      # ===== NO LTO =====
       scripts/config --disable LTO_CLANG
       scripts/config --disable LTO_CLANG_THIN
       scripts/config --disable LTO_CLANG_FULL
       scripts/config --enable LTO_NONE
 
       make olddefconfig
-      make -j8
 
+      # ===== BUILD =====
+      make -j$(nproc)
+
+# =========================
+# PACK ZIP
+# =========================
+  package_script:
+    - |
+      git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3
+      cp kernel/arch/arm64/boot/Image ak3/
+      cd ak3
+      zip -r9 ../Onyx-Kernel.zip *
+
+# =========================
+# ARTIFACT
+# =========================
   artifacts:
-    path: kernel/arch/arm64/boot/Image
+    kernel_image:
+      path: kernel/arch/arm64/boot/Image
+    flashable_zip:
+      path: Onyx-Kernel.zip
