@@ -1,29 +1,53 @@
-# cirrus.yml
 task:
-  build:
-    # Define the OS image to be built
-    container:
-      image: 'ubuntu:20.04'
-    environment:
-      - BRANCH: lineage-23.1
-      - DEVICE: rodin
-      - ROM: LineageOS
-      - AOSP: true
-    install:
-      # Install necessary dependencies
-      - sudo apt update && sudo apt install -y repo git gnupg flex bison build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev lib32z1-dev lib32readline-dev lib32sqlite3-dev lib32freetype6-dev lib32gcc1 lib32stdc++6 lib32ncursesw5-dev lib32bz2-dev liblz4-tool
-    pre_build:
-      # Set up repo and clone the sources
-      - git clone https://github.com/mt6899-rodin/android_device_xiaomi_rodin -b lineage-23.1 device/xiaomi/rodin
-      - mkdir -p ~/.repo/manifests
-      - curl https://raw.githubusercontent.com/LineageOS/android_manifest/lineage-23.1/default.xml -o ~/.repo/manifests/default.xml
-      - repo init -u https://github.com/LineageOS/android.git -b $BRANCH
-      - repo sync -j4
-    build:
-      # Start building the ROM
-      - source build/envsetup.sh
-      - lunch lineage_rodin-userdebug
-      - mka bacon
-    post_build:
-      # Upload the build result to artifact storage or your preferred location
-      - curl -F "file=@out/target/product/rodin/lineage-23.1-*.zip" https://ci.example.com/upload
+  name: Onyx Kernel Build
+  timeout_in: 120m
+
+  container:
+    image: ubuntu:22.04
+    cpu: 8
+    memory: 16G
+
+  setup_script:
+    - apt update
+    - DEBIAN_FRONTEND=noninteractive apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git libelf-dev libssl-dev lzop rsync zip python3 clang lld llvm
+
+  clone_script:
+    - git clone https://github.com/71chjzkc/onyx -b 6.6.77-capybara-clo-2.4 kernel
+    - git clone https://github.com/Neutron-Toolchains/clang clang
+
+  build_script:
+    - |
+      export ARCH=arm64
+      export SUBARCH=arm64
+      export LLVM=1
+      export LLVM_IAS=1
+      export PATH=$PWD/clang/bin:$PATH
+
+      cd kernel
+
+      # ResuKiSU
+      git clone https://github.com/rsuntk/ResuKiSU KernelSU
+      cp -r KernelSU drivers/
+      echo 'source "drivers/KernelSU/Kconfig"' >> drivers/Kconfig
+      echo 'obj-$(CONFIG_KSU) += KernelSU/' >> drivers/Makefile
+
+      make rodin_defconfig
+
+      scripts/config --enable KSU
+      scripts/config --enable KSU_MANUAL_HOOK
+      scripts/config --enable KSU_SUSFS
+      scripts/config --enable KPM
+      scripts/config --enable KPROBES
+      scripts/config --enable KALLSYMS
+      scripts/config --enable KALLSYMS_ALL
+
+      scripts/config --disable LTO_CLANG
+      scripts/config --disable LTO_CLANG_THIN
+      scripts/config --disable LTO_CLANG_FULL
+      scripts/config --enable LTO_NONE
+
+      make olddefconfig
+      make -j8
+
+  artifacts:
+    path: kernel/arch/arm64/boot/Image
