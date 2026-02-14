@@ -1,137 +1,156 @@
 task:
-  name: Onyx CLO Kernel
-  timeout_in: 120m
+  name: Onyx CLO Kernel - production
+  timeout_in: 180m
 
   container:
     image: ubuntu:22.04
     cpu: 8
     memory: 16G
 
-# =========================
-# INSTALL DEPENDENCIES
-# =========================
-  task:
-  name: Kernel Build
-  container:
-    image: ubuntu:22.04
-
+  # -------------------------
+  # Setup & dependencies
+  # -------------------------
   setup_script:
     - export DEBIAN_FRONTEND=noninteractive
+    # ensure clean apt sources (fix minimal CI images)
+    - rm -f /etc/apt/sources.list
+    - |
+      cat <<'EOF' > /etc/apt/sources.list
+      deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
+      deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
+      deb http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
+      deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+      EOF
     - apt-get clean
     - rm -rf /var/lib/apt/lists/*
-    - apt-get update
-    - apt-get install -y software-properties-common
-    - add-apt-repository universe
-    - add-apt-repository multiverse
-    - apt-get update
-    - apt-get upgrade -y
+    - apt-get update -y
 
-    # Install dependencies kernel
-    - apt-get install -y \
-        build-essential \
-        bc \
-        bison \
-        flex \
-        curl \
-        zip \
-        unzip \
-        git \
-        rsync \
-        python3 \
-        cpio \
-        ca-certificates \
-        libssl-dev \
-        libelf-dev \
-        cmake \
-        ninja-build \
-        pkg-config \
-        libncurses-dev \
-        libncurses5-dev \
-        libncursesw5-dev \
-        zlib1g-dev \
-        gcc-multilib \
-        g++-multilib
+    # install basic build deps + tools for building clang (if needed)
+    - apt-get install -y --no-install-recommends \
+        apt-transport-https ca-certificates curl wget gnupg software-properties-common \
+        build-essential bc bison flex git zip unzip rsync python3 cpio \
+        libssl-dev libelf-dev zlib1g-dev cmake ninja-build pkg-config \
+        libncurses-dev libncurses5-dev libncursesw5-dev \
+        gcc-multilib g++-multilib
 
-  script:
-    - echo "Environment Ready"
-# =========================
-# CLONE SOURCE
-# =========================
+    # add official LLVM apt repo (clang-17)
+    - wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - || true
+    - echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list
+    - apt-get update -y
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends clang-17 lld-17 llvm-17
+
+    # set clang-17 as default clang / lld
+    - update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100 || true
+    - update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100 || true
+    - update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-17 100 || true
+
+    - clang --version
+
+  # -------------------------
+  # Clone & prepare kernel
+  # -------------------------
   clone_script:
-    - git clone https://github.com/71chjzkc/onyx_clo -b 6.6.77-capybara-clo-2.4 kernel
-    - git clone --depth=1 https://github.com/llvm/llvm-project llvm
+    - git clone --depth=1 --branch 6.6.77-capybara-clo-2.4 https://github.com/71chjzkc/onyx_clo kernel || (echo "Clone failed"; exit 1)
+    - git clone --depth=1 https://github.com/ReSuKiSU/ReSuKiSU ReSuKiSU || true
+    - git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3 || true
 
-# =========================
-# BUILD LLVM CLANG (STABLE)
-# =========================
-  clang_script:
-    - |
-      cd llvm
-      cmake -S llvm -B build -G Ninja \
-        -DLLVM_ENABLE_PROJECTS="clang;lld" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86"
-      ninja -C build clang lld
-      cd ..
-
-# =========================
-# BUILD KERNEL
-# =========================
+  # -------------------------
+  # Build steps
+  # -------------------------
   build_script:
     - |
-      export ARCH=arm64
-      export SUBARCH=arm64
-      export PATH=$PWD/llvm/build/bin:$PATH
-      export LLVM=1
-      export LLVM_IAS=1
-
+      set -euo pipefail
       cd kernel
 
-      # ===== ReSuKiSU Inject (FIXED PATH) =====
-      if [ ! -d drivers/KernelSU ]; then
-        git clone https://github.com/ReSuKiSU/ReSuKiSU
-        mv ReSuKiSU drivers/KernelSU
+      # Inject ReSuKiSU safely (rename repo dir -> drivers/KernelSU)
+      if [ -d ../ReSuKiSU ] && [ ! -d drivers/KernelSU ]; then
+        mv ../ReSuKiSU drivers/KernelSU
+      fi
+
+      # add Kconfig/Makefile lines only once
+      if ! grep -q 'drivers/KernelSU/Kconfig' drivers/Kconfig 2>/dev/null; then
         echo 'source "drivers/KernelSU/Kconfig"' >> drivers/Kconfig
+      fi
+      if ! grep -q "obj-\\\$(CONFIG_KSU) += KernelSU/" drivers/Makefile 2>/dev/null; then
         echo 'obj-$(CONFIG_KSU) += KernelSU/' >> drivers/Makefile
       fi
 
-      # ===== DEFCONFIG =====
-      make onyx_defconfig
+      # Ensure defconfig present and load it
+      if make -q rodin_defconfig 2>/dev/null; then
+        echo "rodin_defconfig exists, loading"
+        make ARCH=arm64 rodin_defconfig
+      else
+        echo "rodin_defconfig not found - aborting"
+        exit 1
+      fi
 
-      # ===== ROOT + DEBUG =====
-      scripts/config --enable KSU
-      scripts/config --enable KSU_MANUAL_HOOK
-      scripts/config --enable KPM
-      scripts/config --enable KPROBES
-      scripts/config --enable KALLSYMS
-      scripts/config --enable KALLSYMS_ALL
+      # Disable any LTO to avoid heavy RAM linking
+      scripts/config --disable LTO_CLANG || true
+      scripts/config --disable LTO_CLANG_THIN || true
+      scripts/config --disable LTO_CLANG_FULL || true
+      scripts/config --enable LTO_NONE || true
 
-      # ===== NO LTO =====
-      scripts/config --disable LTO_CLANG
-      scripts/config --disable LTO_CLANG_THIN
-      scripts/config --disable LTO_CLANG_FULL
-      scripts/config --enable LTO_NONE
+      # Enable root / hooks / kpm / probes / symbols
+      scripts/config --enable KSU || true
+      scripts/config --enable KSU_MANUAL_HOOK || true
+      scripts/config --enable KPM || true
+      scripts/config --enable KPROBES || true
+      scripts/config --enable HAVE_KPROBES || true
+      scripts/config --enable KALLSYMS || true
+      scripts/config --enable KALLSYMS_ALL || true
 
-      make olddefconfig
+      # small helpful FS options (avoid some runtime issues)
+      scripts/config --enable OVERLAY_FS || true
+      scripts/config --enable TMPFS_XATTR || true
+      scripts/config --enable TMPFS_POSIX_ACL || true
 
-      # ===== BUILD =====
-      make -j$(nproc)
+      make ARCH=arm64 olddefconfig
 
-# =========================
-# PACK ZIP
-# =========================
-  package_script:
-    - |
-      git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3
-      cp kernel/arch/arm64/boot/Image ak3/
-      cd ak3
-      zip -r9 ../Onyx-Kernel.zip *
+      # Export LLVM/clang envs
+      export ARCH=arm64
+      export SUBARCH=arm64
+      export CC=clang
+      export CXX=clang++
+      export LD=ld.lld
+      export AR=llvm-ar
+      export NM=llvm-nm
+      export OBJCOPY=llvm-objcopy
+      export OBJDUMP=llvm-objdump
+      export STRIP=llvm-strip
+      export LLVM=1
+      export LLVM_IAS=1
 
-# =========================
-# ARTIFACT
-# =========================
+      # Build safely using 8 threads (match container CPU)
+      make -j8 ARCH=arm64 2>&1 | tee build.log || (tail -n 200 build.log && exit 1)
+
+      # Verify build artifacts
+      mkdir -p ../out
+      cp -v arch/arm64/boot/Image ../out/ || true
+      cp -v arch/arm64/boot/Image.lz4 ../out/ || true
+      cp -v arch/arm64/boot/dts/*.dtb ../out/ 2>/dev/null || true
+      cp -v arch/arm64/boot/dts/overlays/*.dtbo ../out/ 2>/dev/null || true
+
+      # Package AnyKernel3 flashable zip (if anykernel present)
+      cd ..
+      if [ -d ak3 ]; then
+        cp out/Image ak3/ || true
+        [ -f out/Image.lz4 ] && cp out/Image.lz4 ak3/ || true
+        cd ak3
+        zip -r9 ../Onyx-rodin-ksu-susfs.zip * || true
+        cd ..
+      else
+        cd out
+        zip -r9 ../Onyx-rodin-ksu-susfs.zip *
+        cd ..
+      fi
+
+  # -------------------------
+  # Artifacts to download
+  # -------------------------
   artifacts:
     kernel_image:
-      path: kernel/arch/arm64/boot/Image
+      path: kernel/out/Image
     flashable_zip:
-      path: Onyx-Kernel.zip
+      path: Onyx-rodin-ksu-susfs.zip
+    build_log:
+      path: kernel/build.log
