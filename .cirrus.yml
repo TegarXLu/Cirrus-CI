@@ -27,11 +27,11 @@ task:
 
     # install basic build deps + tools for building clang (if needed)
     - apt-get install -y --no-install-recommends \
-        apt-transport-https ca-certificates curl wget gnupg software-properties-common \
-        build-essential bc bison flex git zip unzip rsync python3 cpio \
-        libssl-dev libelf-dev zlib1g-dev cmake ninja-build pkg-config \
-        libncurses-dev libncurses5-dev libncursesw5-dev \
-        gcc-multilib g++-multilib
+        ca-certificates curl wget gnupg software-properties-common \
+        bc bison flex git zip unzip rsync python3 cpio \
+        libelf-dev zlib1g-dev cmake ninja-build pkg-config \
+        libncurses5-dev libncursesw5-dev \
+        g++-multilib
 
     # add official LLVM apt repo (clang-17)
     - wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - || true
