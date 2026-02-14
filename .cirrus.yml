@@ -1,52 +1,60 @@
 container:
-  image: ubuntu:22.04 # Menggunakan Ubuntu LTS sebagai basis
+  image: ubuntu:22.04
 
 task:
-  name: Build Kernel Onyx CLO
+  name: Build Kernel Onyx 6.6
   timeout_in: 120m
-  
-  # Resource Request (Opsional, sesuaikan dengan kuota Cirrus CI Anda)
   cpu: 8
   memory: 16G
 
   env:
-    # URL Source & Branch
+    # Source & Toolchain Info
     REPO_URL: "https://github.com/71chjzkc/onyx_clo"
     REPO_BRANCH: "susfs-6.6.56-capybara-clo-2.4"
-    # URL Clang
     CLANG_URL: "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-Linux-X64.tar.xz"
-    # Build Variables
+    
+    # Kernel Build Variables
     ARCH: arm64
     SUBARCH: arm64
-    CC: clang
-    NM: llvm-nm
-    OBJCOPY: llvm-objcopy
-    OBJDUMP: llvm-objdump
-    STRIP: llvm-strip
+    DEFCONFIG: onyx_defconfig
+    OUT_DIR: out
 
   install_dependencies_script:
-    - apt-get update && apt-get install -y wget curl git make bc bison flex libssl-dev libelf-dev xz-utils libncurses-dev python3 python-is-python3
+    - apt-get update
+    - apt-get install -y wget curl git make bc bison flex libssl-dev libelf-dev xz-utils \
+      libncurses-dev python3 python-is-python3 gcc g++ zip ca-certificates binutils
 
   setup_toolchain_script:
     - mkdir -p clang
     - wget -qO- $CLANG_URL | tar -xJ --strip-components=1 -C clang
+    # Memasukkan clang ke dalam sistem PATH secara permanen untuk sesi ini
     - echo "PATH=$PWD/clang/bin:$PATH" >> $CIRRUS_ENV
 
   clone_source_script:
     - git clone --depth 1 --branch $REPO_BRANCH $REPO_URL source
-  
+
   build_script:
     - cd source
     - export PATH=$PWD/../clang/bin:$PATH
-    - make O=out ARCH=$ARCH vendor/capybara_defconfig # Sesuaikan defconfig jika namanya berbeda
-    - make -j$(nproc --all) O=out \
+    - export KCONFIG_CONFIG=arch/arm64/configs/$DEFCONFIG
+    
+    # Step 1: Membuat Out Directory dan Generate Config
+    - make O=$OUT_DIR ARCH=$ARCH $DEFCONFIG
+    
+    # Step 2: Proses Kompilasi Utama
+    # Menggunakan LLVM=1 secara otomatis mengatur CC=clang, LD=ld.lld, dll.
+    - make -j$(nproc --all) O=$OUT_DIR \
         ARCH=$ARCH \
-        CC=clang \
+        LLVM=1 \
+        LLVM_IAS=1 \
         CROSS_COMPILE=aarch64-linux-gnu- \
         CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-        LLVM=1 \
-        LLVM_IAS=1
+        V=0 # Set V=1 jika ingin debug detail error
 
-  # Mengambil hasil build (Image.gz atau dtbo)
-  artifacts:
+  # Artifacts: Mengambil Image hasil build
+  kernel_artifacts:
     path: "source/out/arch/arm64/boot/Image*"
+
+  # Jika build gagal, log akan tersimpan untuk analisa
+  failure_artifacts:
+    path: "source/out/.config"
