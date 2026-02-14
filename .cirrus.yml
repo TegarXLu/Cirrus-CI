@@ -1,139 +1,52 @@
+container:
+  image: ubuntu:22.04 # Menggunakan Ubuntu LTS sebagai basis
+
 task:
-  name: Onyx CLO Kernel - production
-  timeout_in: 180m
+  name: Build Kernel Onyx CLO
+  timeout_in: 120m
+  
+  # Resource Request (Opsional, sesuaikan dengan kuota Cirrus CI Anda)
+  cpu: 8
+  memory: 16G
 
-  container:
-    image: ubuntu:22.04
-    cpu: 8
-    memory: 16G
+  env:
+    # URL Source & Branch
+    REPO_URL: "https://github.com/71chjzkc/onyx_clo"
+    REPO_BRANCH: "susfs-6.6.56-capybara-clo-2.4"
+    # URL Clang
+    CLANG_URL: "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-Linux-X64.tar.xz"
+    # Build Variables
+    ARCH: arm64
+    SUBARCH: arm64
+    CC: clang
+    NM: llvm-nm
+    OBJCOPY: llvm-objcopy
+    OBJDUMP: llvm-objdump
+    STRIP: llvm-strip
 
-# =========================
-# INSTALL DEPENDENCIES
-# =========================
-  setup_script:
-    - apt update
-    - DEBIAN_FRONTEND=noninteractive apt install -y \
-        bison build-essential curl flex g++-multilib gcc-multilib git \
-        libssl-dev lzop rsync zip python3 cpio ca-certificates
-   
-    # add official LLVM apt repo (clang-17)
-    - wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - || true
-    - echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list
-    - apt-get update -y
-    - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends clang-17 lld-17 llvm-17
+  install_dependencies_script:
+    - apt-get update && apt-get install -y wget curl git make bc bison flex libssl-dev libelf-dev xz-utils libncurses-dev python3 python-is-python3
 
-    # set clang-17 as default clang / lld
-    - update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100 || true
-    - update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100 || true
-    - update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-17 100 || true
+  setup_toolchain_script:
+    - mkdir -p clang
+    - wget -qO- $CLANG_URL | tar -xJ --strip-components=1 -C clang
+    - echo "PATH=$PWD/clang/bin:$PATH" >> $CIRRUS_ENV
 
-    - clang --version
-
-  # -------------------------
-  # Clone & prepare kernel
-  # -------------------------
-  clone_script:
-    - git clone --depth=1 --branch 6.6.77-capybara-clo-2.4 https://github.com/71chjzkc/onyx_clo kernel || (echo "Clone failed"; exit 1)
-    - git clone --depth=1 https://github.com/ReSuKiSU/ReSuKiSU ReSuKiSU || true
-    - git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3 || true
-
-  # -------------------------
-  # Build steps
-  # -------------------------
+  clone_source_script:
+    - git clone --depth 1 --branch $REPO_BRANCH $REPO_URL source
+  
   build_script:
-    - |
-      set -euo pipefail
-      cd kernel
+    - cd source
+    - export PATH=$PWD/../clang/bin:$PATH
+    - make O=out ARCH=$ARCH vendor/capybara_defconfig # Sesuaikan defconfig jika namanya berbeda
+    - make -j$(nproc --all) O=out \
+        ARCH=$ARCH \
+        CC=clang \
+        CROSS_COMPILE=aarch64-linux-gnu- \
+        CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+        LLVM=1 \
+        LLVM_IAS=1
 
-      # Inject ReSuKiSU safely (rename repo dir -> drivers/KernelSU)
-      if [ -d ../ReSuKiSU ] && [ ! -d drivers/KernelSU ]; then
-        mv ../ReSuKiSU drivers/KernelSU
-      fi
-
-      # add Kconfig/Makefile lines only once
-      if ! grep -q 'drivers/KernelSU/Kconfig' drivers/Kconfig 2>/dev/null; then
-        echo 'source "drivers/KernelSU/Kconfig"' >> drivers/Kconfig
-      fi
-      if ! grep -q "obj-\\\$(CONFIG_KSU) += KernelSU/" drivers/Makefile 2>/dev/null; then
-        echo 'obj-$(CONFIG_KSU) += KernelSU/' >> drivers/Makefile
-      fi
-
-      # Ensure defconfig present and load it
-      if make -q rodin_defconfig 2>/dev/null; then
-        echo "rodin_defconfig exists, loading"
-        make ARCH=arm64 rodin_defconfig
-      else
-        echo "rodin_defconfig not found - aborting"
-        exit 1
-      fi
-
-      # Disable any LTO to avoid heavy RAM linking
-      scripts/config --disable LTO_CLANG || true
-      scripts/config --disable LTO_CLANG_THIN || true
-      scripts/config --disable LTO_CLANG_FULL || true
-      scripts/config --enable LTO_NONE || true
-
-      # Enable root / hooks / kpm / probes / symbols
-      scripts/config --enable KSU || true
-      scripts/config --enable KSU_MANUAL_HOOK || true
-      scripts/config --enable KPM || true
-      scripts/config --enable KPROBES || true
-      scripts/config --enable HAVE_KPROBES || true
-      scripts/config --enable KALLSYMS || true
-      scripts/config --enable KALLSYMS_ALL || true
-
-      # small helpful FS options (avoid some runtime issues)
-      scripts/config --enable OVERLAY_FS || true
-      scripts/config --enable TMPFS_XATTR || true
-      scripts/config --enable TMPFS_POSIX_ACL || true
-
-      make ARCH=arm64 olddefconfig
-
-      # Export LLVM/clang envs
-      export ARCH=arm64
-      export SUBARCH=arm64
-      export CC=clang
-      export CXX=clang++
-      export LD=ld.lld
-      export AR=llvm-ar
-      export NM=llvm-nm
-      export OBJCOPY=llvm-objcopy
-      export OBJDUMP=llvm-objdump
-      export STRIP=llvm-strip
-      export LLVM=1
-      export LLVM_IAS=1
-
-      # Build safely using 8 threads (match container CPU)
-      make -j8 ARCH=arm64 2>&1 | tee build.log || (tail -n 200 build.log && exit 1)
-
-      # Verify build artifacts
-      mkdir -p ../out
-      cp -v arch/arm64/boot/Image ../out/ || true
-      cp -v arch/arm64/boot/Image.lz4 ../out/ || true
-      cp -v arch/arm64/boot/dts/*.dtb ../out/ 2>/dev/null || true
-      cp -v arch/arm64/boot/dts/overlays/*.dtbo ../out/ 2>/dev/null || true
-
-      # Package AnyKernel3 flashable zip (if anykernel present)
-      cd ..
-      if [ -d ak3 ]; then
-        cp out/Image ak3/ || true
-        [ -f out/Image.lz4 ] && cp out/Image.lz4 ak3/ || true
-        cd ak3
-        zip -r9 ../Onyx-rodin-ksu-susfs.zip * || true
-        cd ..
-      else
-        cd out
-        zip -r9 ../Onyx-rodin-ksu-susfs.zip *
-        cd ..
-      fi
-
-  # -------------------------
-  # Artifacts to download
-  # -------------------------
+  # Mengambil hasil build (Image.gz atau dtbo)
   artifacts:
-    kernel_image:
-      path: kernel/out/Image
-    flashable_zip:
-      path: Onyx-rodin-ksu-susfs.zip
-    build_log:
-      path: kernel/build.log
+    path: "source/out/arch/arm64/boot/Image*"
