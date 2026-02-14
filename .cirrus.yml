@@ -13,8 +13,8 @@ task:
   setup_script:
     - apt update
     - DEBIAN_FRONTEND=noninteractive apt install -y \
-        bc bison build-essential curl flex g++-multilib gcc-multilib git \
-        libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates
+        bison build-essential curl flex g++-multilib gcc-multilib git \
+        libssl-dev lzop rsync zip python3 cpio ca-certificates
    
     # add official LLVM apt repo (clang-17)
     - wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - || true
