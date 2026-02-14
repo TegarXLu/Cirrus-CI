@@ -7,17 +7,15 @@ task:
     cpu: 8
     memory: 16G
 
-  # -------------------------
-  # Setup & dependencies
-  # -------------------------
+# =========================
+# INSTALL DEPENDENCIES
+# =========================
   setup_script:
-
-    # install basic build deps + tools for building clang (if needed)
-    - sudo apt-get update
-          sudo apt-get install -y gh bc bison flex libssl-dev libelf-dev dwarves cpio
-          pip install lxml
-
-
+    - apt update
+    - DEBIAN_FRONTEND=noninteractive apt install -y \
+        bc bison build-essential curl flex g++-multilib gcc-multilib git \
+        libelf-dev libssl-dev lzop rsync zip python3 cpio ca-certificates
+   
     # add official LLVM apt repo (clang-17)
     - wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - || true
     - echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list
