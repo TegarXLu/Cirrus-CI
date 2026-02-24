@@ -1,25 +1,33 @@
-env:
-  FOX_SYNC: https://github.com/linastorvaldz/fox_sync.git
-  FOX_BRANCH: 14.1
-  DT_REPO: https://github.com/TegarXLu/Recovery_Device_Rodin.git
-  DT_BRANCH: main
-  DT_PATH: device/xiaomi/rodin
-  DEVICE_MAKEFILE: twrp_rodin-ap2a
-  DEVICE_NAME: rodin
-  BUILD_TARGET: vendorboot
-  TIMEZONE: Asia/Makassar
-  RELEASE_REPO: TegarXLu/Recovery-Release
-  GH_TOKEN: ENCRYPTED[!995e5033f099e005114a08feb07baa00dcb5637a2a07674eedd4c5428f1e36a01f3dac8811e35f174488859940ed34d4!]
-  
+# .cirrus.yml
 task:
-  name: "Build Fox"
-  timeout_in: 480m
+  name: Build LineageOS 23.1 for Xiaomi Rodin
   container:
-    image: eraselk/ubuntu:22.04
-    cpu: 8
-    memory: 32G
-
+    image: ubuntu:20.04  # Menggunakan Ubuntu 20.04 sebagai base image
+  install:
+    # Update sistem dan install dependencies yang diperlukan
+    - sudo apt update && sudo apt upgrade -y
+    - sudo apt install -y \
+        bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
+        lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
+        libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop python-all python3-venv \
+        python3-dev python3-pip
+    # Install repo tool jika belum ada
+    - if ! command -v repo &>/dev/null; then \
+        mkdir -p $HOME/bin && \
+        curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo && \
+        chmod a+x $HOME/bin/repo; fi
   script:
-    - chmod a+x *.sh
-    - ./build.sh
-    - exit $?
+    # Langkah-langkah untuk setup dan build LineageOS
+    - mkdir -p ~/aosp
+    - cd ~/aosp
+    - repo init -u https://android.googlesource.com/platform/manifest -b lineage-23.1
+    - repo sync -j$(nproc)
+    - git clone https://github.com/mt6899-rodin/android_device_xiaomi_rodin -b lineage-23.1 device/xiaomi/rodin
+    - git clone https://github.com/mt6899-rodin/android_vendor_xiaomi_rodin -b lineage-23.1 vendor/xiaomi/rodin
+    - git clone https://github.com/mt6899-rodin/android_kernel_xiaomi_rodin -b lineage-23.1 kernel/xiaomi/rodin
+    - source build/envsetup.sh
+    - lunch lineage_rodin-eng  # Pilih konfigurasi perangkat
+    - make bacon -j$(nproc)  # Membangun ROM
+  artifacts:
+    # Mengarsipkan hasil build ROM
+    - out/target/product/rodin/lineage-23.1-rodin-*.zip
