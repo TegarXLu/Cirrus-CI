@@ -1,95 +1,41 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-set -eo pipefail
-exec > >(tee "$HOME/build.log") 2>&1
+# Setup Environment
+export USE_CCACHE=1
+export CCACHE_DIR=$HOME/.ccache
+export BUILD_NUMBER=$(date +%Y%m%d%H%M)
 
-# ==============================
-# Load helper functions
-# ==============================
-source functions.sh
+# Install dependencies if not yet installed
+sudo apt update && sudo apt install -y \
+    bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
+    lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
+    libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop python-all python3-venv \
+    python3-dev python3-pip
 
-# Trap any error
-trap 'err "Failed to execute command: $BASH_COMMAND"' ERR
-
-# ==============================
-# Workspace
-# ==============================
-mkdir -p workspace
-cd workspace
-
-# ==============================
-# Install dependencies
-# ==============================
-log "Installing build dependencies..."
-curl -LSs https://raw.githubusercontent.com/akhilnarang/scripts/master/setup/android_build_env.sh | bash -
-
-# ==============================
-# Sync OrangeFox manifest
-# ==============================
-log "Syncing OrangeFox manifest..."
-git config --global user.name "bintang774"
-git config --global user.email "108184157+bintang774@users.noreply.github.com"
-
-git clone --depth=1 "$FOX_SYNC" sync
-cd sync
-./orangefox_sync.sh \
-  --branch "$FOX_BRANCH" \
-  --path "$(realpath ../fox_${FOX_BRANCH})"
-cd ..
-
-# ==============================
-# Clone device tree
-# ==============================
-cd "fox_${FOX_BRANCH}"
-
-log "Cloning device tree..."
-git clone --depth=1 -q "$DT_REPO" -b "$DT_BRANCH" "$DT_PATH"
-
-# ==============================
-# Build OrangeFox
-# ==============================
-log "Building OrangeFox..."
-source build/envsetup.sh || true
-export ALLOW_MISSING_DEPENDENCIES=true
-
-lunch "${DEVICE_MAKEFILE}-eng"
-
-mka adbd "${BUILD_TARGET}image" -j"$(nproc --all)"
-
-# ==============================
-# Output files (A14 compatible)
-# ==============================
-OUT_PATH="out/target/product/$DEVICE_NAME"
-
-OUTPUT_FILES=$(ls \
-  "$OUT_PATH"/vendor_boot.img \
-  "$OUT_PATH"/recovery.img \
-  "$OUT_PATH"/OrangeFox*.img \
-  2>/dev/null || true)
-
-if [ -z "$OUTPUT_FILES" ]; then
-  err "No OrangeFox image generated!"
+# Install repo tool
+if ! command -v repo &>/dev/null; then
+    echo "Repo tool not found, installing it"
+    mkdir -p $HOME/bin
+    curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo
+    chmod a+x $HOME/bin/repo
 fi
 
-log "Found output files:"
-ls -lh $OUTPUT_FILES
+# Setup AOSP source
+mkdir -p ~/aosp
+cd ~/aosp
 
-# ==============================
-# GitHub Release
-# ==============================
-log "Creating GitHub release..."
+# Initialize the repo
+repo init -u https://android.googlesource.com/platform/manifest -b lineage-23.1
+repo sync -j$(nproc)
 
-export GITHUB_TOKEN="$GH_TOKEN"
+# Sync device-specific repository
+git clone https://github.com/mt6899-rodin/android_device_xiaomi_rodin -b lineage-23.1 device/xiaomi/rodin
+git clone https://github.com/mt6899-rodin/android_vendor_xiaomi_rodin -b lineage-23.1 vendor/xiaomi/rodin
+git clone https://github.com/mt6899-rodin/android_kernel_xiaomi_rodin -b lineage-23.1 kernel/xiaomi/rodin
 
-DATE=$(TZ="$TIMEZONE" date +"%Y%m%d-%H%M")
-RELEASE_TAG="Fox-${DEVICE_NAME}-${DATE}"
-RELEASE_NAME="OrangeFox ${DEVICE_NAME} ${DATE}"
+# Setup environment for building
+source build/envsetup.sh
+lunch lineage_rodin-eng  # Select device configuration
 
-gh release create "$RELEASE_TAG" \
-  $OUTPUT_FILES \
-  --title "$RELEASE_NAME" \
-  -R "$RELEASE_REPO" || \
-log "GitHub release skipped or already exists"
-
-log "Build & release completed successfully 🎉"
-exit 0
+# Build the ROM
+make bacon -j$(nproc)  # Build ROM
