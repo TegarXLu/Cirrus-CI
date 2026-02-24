@@ -2,7 +2,7 @@
 task:
   name: Build LineageOS 23.1 for Xiaomi Rodin
   container:
-    image: ubuntu:22.04  # Menggunakan Ubuntu 20.04 sebagai base image
+    image: ubuntu:20.04  # Menggunakan Ubuntu 20.04 sebagai base image
   install:
     # Update sistem dan install dependencies yang diperlukan
     - sudo apt update && sudo apt upgrade -y
