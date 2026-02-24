@@ -12,12 +12,13 @@ sudo apt update && sudo apt install -y \
     libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop python-all python3-venv \
     python3-dev python3-pip
 
-# Install repo tool
+# Install repo tool if not yet installed
 if ! command -v repo &>/dev/null; then
     echo "Repo tool not found, installing it"
     mkdir -p $HOME/bin
     curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo
     chmod a+x $HOME/bin/repo
+    export PATH=$PATH:$HOME/bin
 fi
 
 # Setup AOSP source
