@@ -1,6 +1,8 @@
 task:
   build:
-    docker_image: "circleci/python:3.8"
+    container:
+      image: "circleci/python:3.8"
+      shell: /bin/bash
     script:
       - git clone --depth 1 https://github.com/LineageOS/android.git -b lineage-23.1
       - cd android
