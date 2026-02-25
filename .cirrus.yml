@@ -1,33 +1,72 @@
-# .cirrus.yml
+env:
+    CIRRUS_CLONE_DEPTH: 1
+    BUILD_HOSTNAME: "CirrusCI"
+    DEBIAN_FRONTEND: "noninteractive"
+    CHERISH_WORKING_DIR: "/home/kernelpanix/DerpFest"
+    CIRRUS_OUT_DIR: "/home/kernelpanix/out/Rodin"
+    PD_API_KEY: ENCRYPTED[34bc583e19c47c56dc0c1f9950553e9d9c8ec6dcee3c46ed85b83d089ae3e7546324f893ff919531195207645caf9333]
+    SF_PASSWORD: ENCRYPTED[134c9f2823c604c8aae1c1f5ec7b34d7773665677a0d36c41883026c6b703f5362b2d92eebeb550c9a2707fbe337d721]
+
 task:
-  name: Build LineageOS 23.1 for Xiaomi Rodin
-  container:
-    image: ubuntu:20.04  # Menggunakan Ubuntu 20.04 sebagai base image
-  install:
-    # Update sistem dan install dependencies yang diperlukan
-    - sudo apt update && sudo apt upgrade -y
-    - sudo apt install -y \
-        bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
-        lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
-        libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop python-all python3-venv \
-        python3-dev python3-pip
-    # Install repo tool jika belum ada
-    - if ! command -v repo &>/dev/null; then \
-        mkdir -p $HOME/bin && \
-        curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo && \
-        chmod a+x $HOME/bin/repo; fi
+  name: Enviroment
+  skip: $CIRRUS_BRANCH != 'DerpFest-A16'
+  alias: Enviroment
+  persistent_worker:
+  timeout_in: 24h
+
   script:
-    # Langkah-langkah untuk setup dan build LineageOS
-    - mkdir -p ~/aosp
-    - cd ~/aosp
-    - repo init -u https://android.googlesource.com/platform/manifest -b lineage-23.1
-    - repo sync -j$(nproc)
-    - git clone https://github.com/mt6899-rodin/android_device_xiaomi_rodin -b lineage-23.1 device/xiaomi/rodin
-    - git clone https://github.com/mt6899-rodin/android_vendor_xiaomi_rodin -b lineage-23.1 vendor/xiaomi/rodin
-    - git clone https://github.com/mt6899-rodin/android_kernel_xiaomi_rodin -b lineage-23.1 kernel/xiaomi/rodin
-    - source build/envsetup.sh
-    - lunch lineage_rodin-eng  # Pilih konfigurasi perangkat
-    - make bacon -j$(nproc)  # Membangun ROM
-  artifacts:
-    # Mengarsipkan hasil build ROM
-    - out/target/product/rodin/lineage-23.1-rodin-*.zip
+    - echo "Starting setup environment..."
+    - echo $(pwd)
+
+  check_script:
+    - echo $(nproc --all)
+    - echo $(free -mh)
+    - echo $(df -h)
+
+  enviroment_script:
+    - rm -rf $CIRRUS_OUT_DIR
+    - mkdir -p $CIRRUS_OUT_DIR
+    - rm -rf $CIRRUS_WORKING_DIR/out/.lock
+    - cd $CIRRUS_OUT_DIR
+    - wget https://github.com/ling-zhou/rust-sshpass/releases/download/1.1.5/sshpass-1.1.5-x86_64-linux.tar.xz
+    - tar -xvf sshpass-1.1.5-x86_64-linux.tar.xz
+    - wget https://github.com/ManuelReschke/go-pd/releases/download/v1.5.0/go-pd_1.5.0_linux_amd64.tar.gz
+    - tar -xvf go-pd_1.5.0_linux_amd64.tar.gz
+
+task:
+  name: Poco X7 Pro (Rodin)
+  skip: $CIRRUS_BRANCH != 'DerpFest-A16'
+  alias: RodinBuild
+  depends_on: Enviroment
+  persistent_worker:
+  timeout_in: 24h
+  rodin_script:
+    - cd $CHERISH_WORKING_DIR
+    - DEVICE="rodin"
+    - echo "Setting up device tree for Poco X7 Pro (Rodin)..."
+    - git remote add rodin https://github.com/mt6899-rodin/android_device_xiaomi_rodin.git
+    - git fetch rodin
+    - git checkout lineage-23.1
+    - echo "Setting up kernel for Rodin..."
+    - git clone https://github.com/mt6899-rodin/android_kernel_xiaomi_rodin.git kernel/xiaomi/rodin -b lineage-23.1
+    - echo "Setting up vendor for Rodin..."
+    - git clone https://github.com/mt6899-rodin/android_vendor_xiaomi_rodin.git vendor/xiaomi/rodin
+    - . build/envsetup.sh > /dev/null 2>&1 || true
+    - lunch lineage_rodin-user && mka derp -j$(nproc --all) | tee log.txt
+    - mv out/target/product/rodin/DerpFest-*-$DEVICE-*.zip $CIRRUS_OUT_DIR/
+
+task:
+  name: Upload
+  skip: $CIRRUS_BRANCH != 'DerpFest-A16'
+  persistent_worker:
+  timeout_in: 24h
+  depends_on:
+    - RodinBuild
+
+  pixeldrain_script:
+    - cd $CIRRUS_OUT_DIR/
+    - ./go-pd upload -k $PD_API_KEY *.zip -v
+
+  sourceforge_script:
+    - cd $CIRRUS_OUT_DIR/
+    - ./sshpass -p $SF_PASSWORD rsync -avP ./*.zip dopaemon@frs.sourceforge.net:/home/frs/project/android-unofficial/Android-16/DerpFest
