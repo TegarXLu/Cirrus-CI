@@ -1,9 +1,10 @@
 task:
   build:
-    container:
-      image: "circleci/python:3.8"
-      shell: /bin/bash
+    docker:
+      - image: "ubuntu:latest"
+        shell: /bin/bash
     script:
+      - apt update && apt install -y git repo python3 python3-pip curl
       - git clone --depth 1 https://github.com/LineageOS/android.git -b lineage-23.1
       - cd android
       - git clone --depth 1 https://github.com/mt6899-rodin/android_device_xiaomi_rodin -b lineage-23.1 device/xiaomi/rodin
