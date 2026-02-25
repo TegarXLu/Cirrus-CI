@@ -3,7 +3,7 @@ env:
     BUILD_HOSTNAME: "CirrusCI"
     DEBIAN_FRONTEND: "noninteractive"
     CHERISH_WORKING_DIR: "/home/kernelpanix/DerpFest"
-    CIRRUS_OUT_DIR: "/home/kernelpanix/out/Rodin"
+    CIRRUS_OUT_DIR: "/home/kernelpanix/out/DerpFest"
     PD_API_KEY: ENCRYPTED[34bc583e19c47c56dc0c1f9950553e9d9c8ec6dcee3c46ed85b83d089ae3e7546324f893ff919531195207645caf9333]
     SF_PASSWORD: ENCRYPTED[134c9f2823c604c8aae1c1f5ec7b34d7773665677a0d36c41883026c6b703f5362b2d92eebeb550c9a2707fbe337d721]
 
@@ -34,26 +34,74 @@ task:
     - tar -xvf go-pd_1.5.0_linux_amd64.tar.gz
 
 task:
-  name: Poco X7 Pro (Rodin)
+  name: Xiaomi 12
   skip: $CIRRUS_BRANCH != 'DerpFest-A16'
-  alias: RodinBuild
+  alias: CupidBuild
   depends_on: Enviroment
   persistent_worker:
   timeout_in: 24h
-  rodin_script:
+  cupid_script:
     - cd $CHERISH_WORKING_DIR
-    - DEVICE="rodin"
-    - echo "Setting up device tree for Poco X7 Pro (Rodin)..."
-    - git remote add rodin https://github.com/mt6899-rodin/android_device_xiaomi_rodin.git
-    - git fetch rodin
-    - git checkout lineage-23.1
-    - echo "Setting up kernel for Rodin..."
-    - git clone https://github.com/mt6899-rodin/android_kernel_xiaomi_rodin.git kernel/xiaomi/rodin -b lineage-23.1
-    - echo "Setting up vendor for Rodin..."
-    - git clone https://github.com/mt6899-rodin/android_vendor_xiaomi_rodin.git vendor/xiaomi/rodin
+    - DEVICE="cupid"
     - . build/envsetup.sh > /dev/null 2>&1 || true
-    - lunch lineage_rodin-user && mka derp -j$(nproc --all) | tee log.txt
-    - mv out/target/product/rodin/DerpFest-*-$DEVICE-*.zip $CIRRUS_OUT_DIR/
+    - lunch lineage_$DEVICE-bp2a-user && mka derp -j$(nproc --all) | tee log.txt
+    - mv out/target/product/$DEVICE/DerpFest-*-$DEVICE-*.zip $CIRRUS_OUT_DIR/
+
+task:
+  name: Xiaomi 12 Pro
+  skip: $CIRRUS_BRANCH != 'DerpFest-A16'
+  persistent_worker:
+  timeout_in: 24h
+  alias: ZeusBuild
+  depends_on: CupidBuild
+  zeus_script:
+    - cd $CHERISH_WORKING_DIR
+    - DEVICE="zeus"
+    - . build/envsetup.sh > /dev/null 2>&1 || true
+    - lunch lineage_$DEVICE-bp2a-user && mka derp -j$(nproc --all) | tee log.txt
+    - mv out/target/product/$DEVICE/DerpFest-*-$DEVICE-*.zip $CIRRUS_OUT_DIR/
+
+task:
+  name: Xiaomi 12S
+  skip: $CIRRUS_BRANCH != 'DerpFest-A16'
+  persistent_worker:
+  timeout_in: 24h
+  alias: MayflyBuild
+  depends_on: ZeusBuild
+  mayfly_script:
+    - cd $CHERISH_WORKING_DIR
+    - DEVICE="mayfly"
+    - . build/envsetup.sh > /dev/null 2>&1 || true
+    - lunch lineage_$DEVICE-bp2a-user && mka derp -j$(nproc --all) | tee log.txt
+    - mv out/target/product/$DEVICE/DerpFest-*-$DEVICE-*.zip $CIRRUS_OUT_DIR/
+
+task:
+  name: Xiaomi 12S Pro
+  skip: $CIRRUS_BRANCH != 'DerpFest-A16'
+  persistent_worker:
+  timeout_in: 24h
+  alias: UnicornBuild
+  depends_on: MayflyBuild
+  unicorn_script:
+    - cd $CHERISH_WORKING_DIR
+    - DEVICE="unicorn"
+    - . build/envsetup.sh > /dev/null 2>&1 || true
+    - lunch lineage_$DEVICE-bp2a-user && mka derp -j$(nproc --all) | tee log.txt
+    - mv out/target/product/$DEVICE/DerpFest-*-$DEVICE-*.zip $CIRRUS_OUT_DIR/
+
+task:
+  name: Xiaomi 12T Pro
+  skip: $CIRRUS_BRANCH != 'DerpFest-A16'
+  persistent_worker:
+  timeout_in: 24h
+  alias: DitingBuild
+  depends_on: UnicornBuild
+  diting_script:
+    - cd $CHERISH_WORKING_DIR
+    - DEVICE="diting"
+    - . build/envsetup.sh > /dev/null 2>&1 || true
+    - lunch lineage_$DEVICE-bp2a-user && mka derp -j$(nproc --all) | tee log.txt
+    - mv out/target/product/$DEVICE/DerpFest-*-$DEVICE-*.zip $CIRRUS_OUT_DIR/
 
 task:
   name: Upload
@@ -61,11 +109,15 @@ task:
   persistent_worker:
   timeout_in: 24h
   depends_on:
-    - RodinBuild
+    - CupidBuild
+    - ZeusBuild
+    - MayflyBuild
+    - UnicornBuild
+    - DitingBuild
 
   pixeldrain_script:
     - cd $CIRRUS_OUT_DIR/
-    - ./go-pd upload -k $PD_API_KEY *.zip -v
+    -  ./go-pd upload -k $PD_API_KEY *.zip -v
 
   sourceforge_script:
     - cd $CIRRUS_OUT_DIR/
